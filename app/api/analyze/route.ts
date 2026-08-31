@@ -6,42 +6,56 @@ import { NextResponse } from 'next/server';
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    const { sessionId } = await request.json();
+    const { sessionId, recordingId } = await request.json();
 
-    if (!sessionId) {
-      return NextResponse.json({ error: 'sessionId is required' }, { status: 400 });
+    if (!sessionId && !recordingId) {
+      return NextResponse.json({ error: 'sessionId or recordingId is required' }, { status: 400 });
     }
 
     const supabase = createServiceRoleClient();
 
-    // Fetch the transcript for this session
-    const { data: participant, error: fetchError } = await supabase
-      .from('session_participants')
-      .select('transcript')
-      .eq('session_id', sessionId)
-      .eq('user_id', user.id)
-      .single();
+    let transcript: string | null = null;
 
-    if (fetchError || !participant) {
-      return NextResponse.json({ error: 'Session participant not found' }, { status: 404 });
+    if (sessionId) {
+      const { data: participant, error: fetchError } = await supabase
+        .from('session_participants')
+        .select('transcript')
+        .eq('session_id', sessionId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (fetchError || !participant) {
+        return NextResponse.json({ error: 'Session participant not found' }, { status: 404 });
+      }
+
+      transcript = participant.transcript;
+    } else if (recordingId) {
+      const { data: recording, error: fetchError } = await supabase
+        .from('recordings')
+        .select('transcript')
+        .eq('id', recordingId)
+        .single();
+
+      if (fetchError || !recording) {
+        return NextResponse.json({ error: 'Recording not found' }, { status: 404 });
+      }
+
+      transcript = recording.transcript;
     }
 
-    if (!participant.transcript) {
-      return NextResponse.json({ error: 'No transcript available for this session' }, { status: 400 });
+    if (!transcript) {
+      return NextResponse.json({ error: 'No transcript available' }, { status: 400 });
     }
 
-    // Get user's previous transcript history for context
     const history = await getUserTranscriptHistory(supabase, user.id);
 
-    // Analyze the transcript
-    const analysis = await analyzeTranscript(participant.transcript, history || undefined);
+    const analysis = await analyzeTranscript(transcript, history || undefined);
 
-    // Store the analysis
     const { error: insertError } = await supabase
       .from('ai_analyses')
       .insert({
         user_id: user.id,
-        session_id: sessionId,
+        session_id: sessionId || null,
         summary: analysis.summary,
         trend: analysis.trend,
       });

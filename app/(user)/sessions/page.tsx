@@ -69,7 +69,7 @@ export default async function SessionsPage() {
           </div>
           <Link
             href='/sessions/create'
-            className='inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-indigo-200 transition-all hover:bg-indigo-500 hover:shadow-md hover:shadow-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:ring-offset-2'
+            className='inline-flex items-center gap-2 rounded-lg bg-black px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-gray-200 transition-all hover:bg-gray-700 hover:shadow-md hover:shadow-gray-200 focus:outline-none focus:ring-2 focus:ring-black/20 focus:ring-offset-2'
           >
             <svg
               className='w-4 h-4'
@@ -115,7 +115,7 @@ export default async function SessionsPage() {
           </p>
           <Link
             href='/sessions/create'
-            className='inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-indigo-200 transition-all hover:bg-indigo-500 hover:shadow-md hover:shadow-indigo-200'
+            className='inline-flex items-center gap-2 rounded-lg bg-black px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-gray-200 transition-all hover:bg-gray-700 hover:shadow-md hover:shadow-gray-200'
           >
             <svg
               className='w-4 h-4'

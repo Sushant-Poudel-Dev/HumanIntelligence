@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, Fragment } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 
@@ -16,16 +16,51 @@ interface Recording {
   is_manual?: boolean;
 }
 
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.round(seconds % 60);
+  return secs > 0 ? `${mins}m ${secs}s` : `${mins} min`;
+}
+
+function formatSessionDuration(started: string, ended: string): string {
+  const seconds = (new Date(ended).getTime() - new Date(started).getTime()) / 1000;
+  return formatDuration(seconds);
+}
+
 export default function RecordingsTable({ recordings }: { recordings: Recording[] }) {
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [durations, setDurations] = useState<Record<string, number>>({});
 
-  const toggleExpand = (id: string) => {
-    setExpandedId(expandedId === id ? null : id);
+  const loadDuration = useCallback((id: string, url: string) => {
+    if (durations[id] !== undefined) return;
+    const audio = new Audio();
+    audio.preload = 'metadata';
+    audio.onloadedmetadata = () => {
+      setDurations(prev => ({ ...prev, [id]: audio.duration }));
+    };
+    audio.src = url;
+  }, [durations]);
+
+  const getDuration = (rec: Recording) => {
+    if (rec.started_at && rec.ended_at) {
+      return formatSessionDuration(rec.started_at, rec.ended_at);
+    }
+    const seconds = durations[rec.id];
+    if (seconds !== undefined) return formatDuration(seconds);
+    return '...';
   };
+
+  useEffect(() => {
+    recordings.forEach(rec => {
+      if (!rec.started_at || !rec.ended_at) {
+        loadDuration(rec.id, rec.audio_recording_url);
+      }
+    });
+  }, [recordings, loadDuration]);
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('en-US', {
@@ -33,14 +68,6 @@ export default function RecordingsTable({ recordings }: { recordings: Recording[
       day: 'numeric',
       year: 'numeric',
     });
-  };
-
-  const formatDuration = (started: string | undefined, ended: string | null | undefined) => {
-    if (!started || !ended) return '—';
-    const mins = Math.round(
-      (new Date(ended).getTime() - new Date(started).getTime()) / 60000
-    );
-    return `${mins} min`;
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -185,107 +212,76 @@ export default function RecordingsTable({ recordings }: { recordings: Recording[
               <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Session</th>
               <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Date</th>
               <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Duration</th>
-              <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Transcript</th>
               <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Audio</th>
               <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Analysis</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {recordings.map((rec) => (
-              <Fragment key={rec.id}>
-                <tr className="hover:bg-gray-50/50 transition-colors">
-                  <td className="px-5 py-3.5">
-                    <span className="text-sm font-medium text-gray-900">{rec.topic}</span>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <span className="text-sm text-gray-500">{formatDate(rec.created_at)}</span>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <span className="text-sm text-gray-500">{formatDuration(rec.started_at || rec.created_at, rec.ended_at)}</span>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    {rec.transcript ? (
-                      <button
-                        onClick={() => toggleExpand(rec.id)}
-                        className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-500 transition-colors"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+              <tr key={rec.id} className="hover:bg-gray-50/50 transition-colors">
+                <td className="px-5 py-3.5">
+                  <span className="text-sm font-medium text-gray-900">{rec.topic}</span>
+                </td>
+                <td className="px-5 py-3.5">
+                  <span className="text-sm text-gray-500">{formatDate(rec.created_at)}</span>
+                </td>
+                <td className="px-5 py-3.5">
+                  <span className="text-sm text-gray-500">{getDuration(rec)}</span>
+                </td>
+                <td className="px-5 py-3.5 text-right">
+                  <audio
+                    id={`audio-${rec.id}`}
+                    src={rec.audio_recording_url}
+                    onPlay={() => setPlayingId(rec.id)}
+                    onPause={() => setPlayingId(null)}
+                    onEnded={() => setPlayingId(null)}
+                    preload="none"
+                    className="hidden"
+                  />
+                  <button
+                    onClick={() => {
+                      const audio = document.getElementById(`audio-${rec.id}`) as HTMLAudioElement;
+                      if (playingId === rec.id) {
+                        audio?.pause();
+                      } else {
+                        audio?.play();
+                      }
+                    }}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      playingId === rec.id
+                        ? 'bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20'
+                        : 'bg-gray-50 text-gray-700 hover:bg-gray-100 ring-1 ring-inset ring-gray-200'
+                    }`}
+                  >
+                    {playingId === rec.id ? (
+                      <>
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" />
                         </svg>
-                        {expandedId === rec.id ? 'Hide' : 'View'} transcript
-                      </button>
+                        Pause
+                      </>
                     ) : (
-                      <span className="text-xs text-gray-400 italic">—</span>
-                    )}
-                  </td>
-                  <td className="px-5 py-3.5 text-right">
-                    <audio
-                      id={`audio-${rec.id}`}
-                      src={rec.audio_recording_url}
-                      onPlay={() => setPlayingId(rec.id)}
-                      onPause={() => setPlayingId(null)}
-                      onEnded={() => setPlayingId(null)}
-                      preload="none"
-                      className="hidden"
-                    />
-                    <button
-                      onClick={() => {
-                        const audio = document.getElementById(`audio-${rec.id}`) as HTMLAudioElement;
-                        if (playingId === rec.id) {
-                          audio?.pause();
-                        } else {
-                          audio?.play();
-                        }
-                      }}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                        playingId === rec.id
-                          ? 'bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20'
-                          : 'bg-gray-50 text-gray-700 hover:bg-gray-100 ring-1 ring-inset ring-gray-200'
-                      }`}
-                    >
-                      {playingId === rec.id ? (
-                        <>
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" />
-                          </svg>
-                          Pause
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
-                          </svg>
-                          Play
-                        </>
-                      )}
-                    </button>
-                  </td>
-                  <td className="px-5 py-3.5 text-right">
-                    {rec.session_id ? (
-                      <Link
-                        href={`/sessions/${rec.session_id}/analyze`}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20 hover:bg-indigo-100 transition-colors"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                      <>
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
                         </svg>
-                        Analyze
-                      </Link>
-                    ) : (
-                      <span className="text-xs text-gray-400">—</span>
+                        Play
+                      </>
                     )}
-                  </td>
-                </tr>
-                {expandedId === rec.id && rec.transcript && (
-                  <tr key={`${rec.id}-transcript`}>
-                    <td colSpan={6} className="px-5 py-4 bg-gray-50/80">
-                      <div className="max-h-60 overflow-y-auto">
-                        <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{rec.transcript}</p>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </>
+                  </button>
+                </td>
+                <td className="px-5 py-3.5 text-right">
+                  <Link
+                    href={rec.session_id ? `/sessions/${rec.session_id}/analyze` : `/analyze/${rec.id}`}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20 hover:bg-indigo-100 transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                    </svg>
+                    Analyze
+                  </Link>
+                </td>
+              </tr>
             ))}
           </tbody>
         </table>

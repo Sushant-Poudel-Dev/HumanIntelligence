@@ -97,7 +97,7 @@ export async function getUserTranscriptHistory(
   supabase: any,
   userId: string
 ): Promise<string | null> {
-  const { data } = await supabase
+  const { data: sessionData } = await supabase
     .from('session_participants')
     .select('transcript, created_at')
     .eq('user_id', userId)
@@ -105,9 +105,33 @@ export async function getUserTranscriptHistory(
     .order('created_at', { ascending: false })
     .limit(5);
 
-  if (!data || data.length === 0) return null;
+  const { data: journalData } = await supabase
+    .from('journal_entries')
+    .select('content, created_at')
+    .eq('user_id', userId)
+    .eq('include_in_analysis', true)
+    .order('created_at', { ascending: false })
+    .limit(10);
 
-  return data
-    .map((d: { transcript: string; created_at: string }) => `[${new Date(d.created_at).toLocaleDateString()}]\n${d.transcript}`)
-    .join('\n\n');
+  const parts: string[] = [];
+
+  if (sessionData && sessionData.length > 0) {
+    parts.push('--- Session Transcripts ---');
+    for (const d of sessionData) {
+      if (d.transcript) {
+        parts.push(`[${new Date(d.created_at).toLocaleDateString()}]\n${d.transcript}`);
+      }
+    }
+  }
+
+  if (journalData && journalData.length > 0) {
+    parts.push('--- Journal Entries ---');
+    for (const d of journalData) {
+      if (d.content) {
+        parts.push(`[${new Date(d.created_at).toLocaleDateString()}]\n${d.content}`);
+      }
+    }
+  }
+
+  return parts.length > 0 ? parts.join('\n\n') : null;
 }

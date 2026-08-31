@@ -91,6 +91,7 @@ export interface JournalEntry {
   id: string;
   user_id: string;
   content: string;
+  include_in_analysis: boolean;
   created_at: string;
 }
 
