@@ -19,33 +19,28 @@ Join Session (peer group / group + counselor / 1:1 counselor)
 
 ## Tech Stack
 
-| Layer | Choice |
-|-------|--------|
-| Frontend | Next.js (App Router), TypeScript, Tailwind CSS |
-| Auth | Supabase Auth (email/password + Google OAuth) |
-| Database | Supabase Postgres with Row Level Security (RLS) |
-| File Storage | Supabase Storage (audio recordings) |
-| Video/Audio | LiveKit (real-time video, recording) |
-| STT | Groq Whisper API (`whisper-large-v3-turbo`) |
-| AI Analysis | LLM API (Claude/GPT-class) |
-| Testing | Playwright |
+| Layer        | Choice                                          |
+| ------------ | ----------------------------------------------- |
+| Frontend     | Next.js (App Router), TypeScript, Tailwind CSS  |
+| Auth         | Supabase Auth (email/password + Google OAuth)   |
+| Database     | Supabase Postgres with Row Level Security (RLS) |
+| File Storage | Supabase Storage (audio recordings)             |
+| Video/Audio  | LiveKit (real-time video, recording)            |
+| STT          | Groq Whisper API (`whisper-large-v3-turbo`)     |
+| AI Analysis  | LLM API (Claude/GPT-class)                      |
+| Testing      | Playwright                                      |
 
 ---
 
 ## Features
 
-### Implemented (Phases 1-2)
-
-- **Auth** — Separate login/signup flows for Users and Professionals
-- **OAuth** — Google sign-in with automatic profile creation
-- **Dashboard** — Session overview, journal count, recordings table
-- **Session Join Flow** — LiveKit video rooms with mic/cam/leave controls
-- **Session API** — Start/end session endpoints, group listing
-- **RLS** — Row-level security on every table, identity anonymization
-- **Audio Recording** — Per-participant audio capture and storage
-
-### Planned (Phases 3-8)
-
+- Separate login/signup flows for Users and Professionals
+- Google sign-in with automatic profile creation
+- Session overview, journal count, recordings table
+- LiveKit video rooms with mic/cam/leave controls
+- Start/end session endpoints, group listing
+- Row-level security on every table, identity anonymization
+- Per-participant audio capture and storage
 - Post-session transcription (Groq Whisper)
 - AI analysis with history-aware trend detection
 - Journal (private, feeds AI context)
@@ -138,19 +133,19 @@ tests/                 # Playwright tests
 
 The database uses Supabase Postgres with Row Level Security (RLS) enforced on every table. Key tables:
 
-| Table | Purpose |
-|-------|---------|
-| `users` | Anonymous user profiles (linked to auth via `auth_id`) |
-| `professionals` | Verified counselor accounts |
-| `groups` | Topic-based support groups (peer, peer+counselor, 1:1) |
-| `sessions` | Session instances (linked to group and optional professional) |
-| `session_participants` | User participation records with audio URLs |
-| `transcripts` | Post-session transcription text |
-| `ai_analyses` | AI-generated wellbeing trend analysis |
-| `progress_notes` | AI or professional-authored progress notes |
-| `journal_entries` | Private user journal entries |
-| `forum_prompts` / `forum_responses` | Community engagement prompts |
-| `helpline_requests` | Emergency escalation requests |
+| Table                               | Purpose                                                       |
+| ----------------------------------- | ------------------------------------------------------------- |
+| `users`                             | Anonymous user profiles (linked to auth via `auth_id`)        |
+| `professionals`                     | Verified counselor accounts                                   |
+| `groups`                            | Topic-based support groups (peer, peer+counselor, 1:1)        |
+| `sessions`                          | Session instances (linked to group and optional professional) |
+| `session_participants`              | User participation records with audio URLs                    |
+| `transcripts`                       | Post-session transcription text                               |
+| `ai_analyses`                       | AI-generated wellbeing trend analysis                         |
+| `progress_notes`                    | AI or professional-authored progress notes                    |
+| `journal_entries`                   | Private user journal entries                                  |
+| `forum_prompts` / `forum_responses` | Community engagement prompts                                  |
+| `helpline_requests`                 | Emergency escalation requests                                 |
 
 ---
 
