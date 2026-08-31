@@ -1,26 +1,52 @@
-import { createServerClientInstance } from '@/lib/supabase/server';
+import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export async function proxy(request: NextRequest) {
-  const supabase = await createServerClientInstance();
+  let supabaseResponse = NextResponse.next({ request });
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value)
+          );
+          supabaseResponse = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          );
+        },
+      },
+    }
+  );
+
   const { data: { session } } = await supabase.auth.getSession();
 
   const pathname = request.nextUrl.pathname;
   const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/signup') || pathname.startsWith('/professional-login') || pathname.startsWith('/professional-signup') || pathname.startsWith('/auth/callback');
-  const isUserRoute = pathname.startsWith('/dashboard') || pathname.startsWith('/sessions') || pathname.startsWith('/journal') || pathname.startsWith('/forums') || pathname.startsWith('/progress') || pathname.startsWith('/helpline');
+  const isUserRoute = pathname.startsWith('/dashboard') || pathname.startsWith('/sessions') || pathname.startsWith('/journal') || pathname.startsWith('/progress') || pathname.startsWith('/helpline');
   const isProfessionalRoute = pathname.startsWith('/professional/dashboard') || pathname.startsWith('/professional/clients');
+
+  if (pathname === '/') {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
 
   if (!session) {
     if (isAuthRoute) {
-      return NextResponse.next();
+      return supabaseResponse;
     }
     if (isUserRoute || isProfessionalRoute) {
       const loginUrl = new URL('/login', request.url);
       loginUrl.searchParams.set('redirectTo', pathname);
       return NextResponse.redirect(loginUrl);
     }
-    return NextResponse.next();
+    return supabaseResponse;
   }
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -30,7 +56,7 @@ export async function proxy(request: NextRequest) {
       loginUrl.searchParams.set('redirectTo', pathname);
       return NextResponse.redirect(loginUrl);
     }
-    return NextResponse.next();
+    return supabaseResponse;
   }
 
   const [userProfile, professionalProfile] = await Promise.all([
@@ -50,7 +76,7 @@ export async function proxy(request: NextRequest) {
     if (isProfessional) {
       return NextResponse.redirect(new URL('/professional/dashboard', request.url));
     }
-    return NextResponse.next();
+    return supabaseResponse;
   }
 
   if (isUserRoute && !isUser) {
@@ -72,7 +98,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL('/professional-login', request.url));
   }
 
-  return NextResponse.next();
+  return supabaseResponse;
 }
 
 export const config = {
